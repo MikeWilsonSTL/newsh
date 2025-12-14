@@ -1,3 +1,7 @@
+<!--
+SPDX-FileCopyrightText: 2025 Firstname Lastname
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
 # newsh - a bash script generator
 This tool generates a new script with my preferred settings: strict mode and extglob enabled.
 
