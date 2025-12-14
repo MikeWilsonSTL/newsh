@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Description: A tool to streamline bash script creation. Creates a named script from a template and opens a text editor.
+# Usage: ./newsh
+
+set -euo pipefail
+shopt -s extglob
+
+# defaults
+FULL=false
+AUTHOR=""
+TIMESTAMP=false
+LICENSE=""
+TEMPLATE_FILE=""
+SHELL="bash"
+NO_EDIT=false
+FORCE=false
+
+# templates
+template_bash() {
+cat <<'EOF'
+#!/usr/bin/env bash
+# Description: [brief purpose of the script]
+# Usage: [how to run the script, e.g., ./script_name.sh <arguments>]
+# Author: {{AUTHOR}}
+# Created: {{TIMESTAMP}}
+# License: {{LICENSE}}
+
+set -euo pipefail
+shopt -s extglob
+
+main() {
+    echo "script started"
+    # add commands here
+    echo "script finished successfully"
+}
+
+main "$@"
+EOF
+}
+
+usage() {
+    cat <<EOF
+Usage: newsh [options] [filename]
+
+Options:
+  -a, --author         	Add author name (prompt if omitted)
+  -t, --timestamp      	Add creation timestamp
+  -l, --license [NAME] 	Add license (prompt if omitted)
+  -f, --full           	Add author, timestamp, and license
+  -T, --template [FILE] Use custom template file (disables -atlf)
+  -n, --no-edit        	Do not open editor
+  -F, --force          	Overwrite existing file
+  -h, --help           	Show this help
+EOF
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -a|--author)
+                if [[ ${2:-} && ! $2 =~ ^- ]]; then
+                    AUTHOR="$2"
+                    shift 2
+                else
+                    AUTHOR="PROMPT"
+                    shift
+                fi
+                ;;
+            -t|--timestamp)
+                TIMESTAMP=true
+                shift
+                ;;
+            -l|--license)
+                if [[ ${2:-} && ! $2 =~ ^- ]]; then
+                    LICENSE="$2"
+                    shift 2
+                else
+                    LICENSE="PROMPT"
+                    shift
+                fi
+                ;;
+            -T|--template)
+                if [[ ${2:-} && ! $2 =~ ^- ]]; then
+                    TEMPLATE_FILE="$2"
+                    shift 2
+                else
+                    echo "Error: --template requires a file path" >&2
+                    exit 1
+                fi
+                ;;
+            -f|--full)
+                FULL=true
+                shift
+                ;;
+            -n|--no-edit)
+                NO_EDIT=true
+                shift
+                ;;
+            -F|--force)
+                FORCE=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                echo "Unknown option: $1" >&2
+                exit 1
+                ;;
+            *)
+                FILENAME="$1"
+                shift
+                ;;
+        esac
+    done
+}
+
+
+collect_metadata() {
+    [[ "$AUTHOR" == "PROMPT" ]] && read -rp "Author: " AUTHOR
+    [[ "$LICENSE" == "PROMPT" ]] && read -rp "License: " LICENSE
+    $TIMESTAMP && TIMESTAMP="$(date -Is)" || TIMESTAMP=""
+}
+
+apply_full_mode() {
+    if $FULL; then
+        AUTHOR="PROMPT"
+        TIMESTAMP=true
+        LICENSE="PROMPT"
+    fi
+}
+
+render_template() {
+    local content
+
+    if [[ -n "$TEMPLATE_FILE" ]]; then
+        content="$(<"$TEMPLATE_FILE")"
+    else
+        case "$SHELL" in
+            bash) content="$(template_bash)" ;;
+            *) echo "Unsupported shell: $SHELL" >&2; exit 1 ;;
+        esac
+    fi
+
+    content="${content//\{\{AUTHOR\}\}/$AUTHOR}"
+    content="${content//\{\{TIMESTAMP\}\}/$TIMESTAMP}"
+    content="${content//\{\{LICENSE\}\}/$LICENSE}"
+
+    printf '%s\n' "$content"
+}
+
+main() {
+    parse_args "$@"
+    apply_full_mode
+
+    [[ -z "${FILENAME:-}" ]] && read -rp "New script name: " FILENAME
+
+    [[ -e "$FILENAME" && $FORCE == false ]] && {
+        echo "File exists. Use --force to overwrite." >&2
+        exit 1
+    }
+
+    collect_metadata
+    render_template > "$FILENAME"
+    chmod +x "$FILENAME"
+
+    $NO_EDIT || ${EDITOR:-vim} "$FILENAME"
+}
+
+main "$@"
