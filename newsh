@@ -6,6 +6,7 @@ set -euo pipefail
 shopt -s extglob
 
 # defaults
+FILENAME=""
 FULL=false
 AUTHOR=""
 TIMESTAMP=false
@@ -43,14 +44,14 @@ usage() {
 Usage: newsh [options] [filename]
 
 Options:
-  -a, --author         	Add author name (prompt if omitted)
-  -t, --timestamp      	Add creation timestamp
-  -l, --license [NAME] 	Add license (prompt if omitted)
-  -f, --full           	Add author, timestamp, and license
+  -a, --author          Add author name (prompt if omitted)
+  -t, --timestamp       Add creation timestamp
+  -l, --license [NAME]  Add license (prompt if omitted)
+  -f, --full            Add author, timestamp, and license
   -T, --template [FILE] Use custom template file (disables -atlf)
-  -n, --no-edit        	Do not open editor
-  -F, --force          	Overwrite existing file
-  -h, --help           	Show this help
+  -n, --no-edit         Do not open editor
+  -F, --force           Overwrite existing file
+  -h, --help            Show this help
 EOF
 }
 
@@ -85,7 +86,7 @@ parse_args() {
                     shift 2
                 else
                     echo "Error: --template requires a file path" >&2
-                    exit 1
+                    return 1
                 fi
                 ;;
             -f|--full)
@@ -102,7 +103,7 @@ parse_args() {
                 ;;
             -h|--help)
                 usage
-                exit 0
+                return 0
                 ;;
             --)
                 shift
@@ -110,7 +111,7 @@ parse_args() {
                 ;;
             -*)
                 echo "Unknown option: $1" >&2
-                exit 1
+                return 1
                 ;;
             *)
                 FILENAME="$1"
@@ -143,7 +144,7 @@ render_template() {
     else
         case "$SHELL" in
             bash) content="$(template_bash)" ;;
-            *) echo "Unsupported shell: $SHELL" >&2; exit 1 ;;
+            *) echo "Unsupported shell: $SHELL" >&2; return 1 ;;
         esac
     fi
 
@@ -160,10 +161,10 @@ main() {
 
     [[ -z "${FILENAME:-}" ]] && read -rp "New script name: " FILENAME
 
-    [[ -e "$FILENAME" && $FORCE == false ]] && {
+    if [[ -e "$FILENAME" && $FORCE == false ]]; then
         echo "File exists. Use --force to overwrite." >&2
-        exit 1
-    }
+        return 1
+    fi
 
     collect_metadata
     render_template > "$FILENAME"
@@ -172,4 +173,4 @@ main() {
     $NO_EDIT || ${EDITOR:-vim} "$FILENAME"
 }
 
-main "$@"
+main "$@" || exit $?
